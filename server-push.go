@@ -23,7 +23,7 @@ type serverPusherResponseWriter struct {
 	wroteHeader bool
 }
 
-func (w serverPusherResponseWriter) WriteHeader(code int) {
+func (w *serverPusherResponseWriter) WriteHeader(code int) {
 	if w.wroteHeader {
 		w.ResponseWriter.WriteHeader(code)
 		return
@@ -44,7 +44,7 @@ outer:
 	w.ResponseWriter.WriteHeader(code)
 }
 
-func (w serverPusherResponseWriter) pushLink(link string) error {
+func (w *serverPusherResponseWriter) pushLink(link string) error {
 	fields := strings.FieldsFunc(link, func(r rune) bool {
 		return r == ';' || unicode.IsSpace(r)
 	})
@@ -87,7 +87,7 @@ func (s serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.Handler.ServeHTTP(serverPusherResponseWriter{
+	s.Handler.ServeHTTP(&serverPusherResponseWriter{
 		ResponseWriter: w,
 		Pusher:         p,
 
