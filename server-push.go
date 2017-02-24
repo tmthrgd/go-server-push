@@ -12,7 +12,7 @@ import (
 	"unicode"
 )
 
-const pushSentinalHeader = "X-Push"
+const pushSentinalHeader = "X-H2-Push"
 
 type serverPusher struct {
 	http.Handler
