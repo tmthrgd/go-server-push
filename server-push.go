@@ -32,7 +32,7 @@ func (s serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	for _, link := range links {
 		for _, value := range strings.Split(link, ",") {
-			if err := pushLink(p, value, opts); err != nil {
+			if err := s.pushLink(p, value, opts); err != nil {
 				log.Println(err)
 				return
 			}
@@ -40,8 +40,10 @@ func (s serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func pushLink(p http.Pusher, link string, opts *http.PushOptions) error {
-	fields := strings.FieldsFunc(link, linkFields)
+func (serverPusher) pushLink(p http.Pusher, link string, opts *http.PushOptions) error {
+	fields := strings.FieldsFunc(link, func(r rune) bool {
+		return r == ';' || unicode.IsSpace(r)
+	})
 	if len(fields) < 2 {
 		return nil
 	}
@@ -68,8 +70,4 @@ func pushLink(p http.Pusher, link string, opts *http.PushOptions) error {
 	}
 
 	return p.Push(path[1:len(path)-1], opts)
-}
-
-func linkFields(r rune) bool {
-	return r == ';' || unicode.IsSpace(r)
 }
