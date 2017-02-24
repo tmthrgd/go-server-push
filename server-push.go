@@ -14,36 +14,37 @@ import (
 
 const pushSentinalHeader = "X-H2-Push"
 
-type serverPusher struct {
-	http.Handler
+type serverPusherResponseWriter struct {
+	http.ResponseWriter
+	http.Pusher
+
+	opts *http.PushOptions
+
+	wroteHeader bool
 }
 
-func (s serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.Handler.ServeHTTP(w, r)
-
-	p, ok0 := w.(http.Pusher)
-	links, ok1 := w.Header()["Link"]
-	if !ok0 || !ok1 {
+func (w serverPusherResponseWriter) WriteHeader(code int) {
+	if w.wroteHeader {
+		w.ResponseWriter.WriteHeader(code)
 		return
 	}
 
-	opts := &http.PushOptions{
-		Header: http.Header{
-			pushSentinalHeader: []string{"1"},
-		},
-	}
+	w.wroteHeader = true
 
-	for _, link := range links {
+outer:
+	for _, link := range w.Header()["Link"] {
 		for _, value := range strings.Split(link, ",") {
-			if err := s.pushLink(p, value, opts); err != nil {
+			if err := w.pushLink(value); err != nil {
 				log.Println(err)
-				return
+				break outer
 			}
 		}
 	}
+
+	w.ResponseWriter.WriteHeader(code)
 }
 
-func (serverPusher) pushLink(p http.Pusher, link string, opts *http.PushOptions) error {
+func (w serverPusherResponseWriter) pushLink(link string) error {
 	fields := strings.FieldsFunc(link, func(r rune) bool {
 		return r == ';' || unicode.IsSpace(r)
 	})
@@ -72,5 +73,28 @@ func (serverPusher) pushLink(p http.Pusher, link string, opts *http.PushOptions)
 		return nil
 	}
 
-	return p.Push(path[1:len(path)-1], opts)
+	return w.Push(path[1:len(path)-1], w.opts)
+}
+
+type serverPusher struct {
+	http.Handler
+}
+
+func (s serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p, ok := w.(http.Pusher)
+	if !ok {
+		s.Handler.ServeHTTP(w, r)
+		return
+	}
+
+	s.Handler.ServeHTTP(serverPusherResponseWriter{
+		ResponseWriter: w,
+		Pusher:         p,
+
+		opts: &http.PushOptions{
+			Header: http.Header{
+				pushSentinalHeader: []string{"1"},
+			},
+		},
+	}, r)
 }
