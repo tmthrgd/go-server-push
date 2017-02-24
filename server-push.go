@@ -27,8 +27,11 @@ func (s serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := &http.PushOptions{Header: make(http.Header)}
-	opts.Header.Add(pushSentinalHeader, "")
+	opts := &http.PushOptions{
+		Header: http.Header{
+			pushSentinalHeader: []string{"1"},
+		},
+	}
 
 	for _, link := range links {
 		for _, value := range strings.Split(link, ",") {
