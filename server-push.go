@@ -256,3 +256,10 @@ func New(m, k uint, handler http.Handler) http.Handler {
 func EstimateParameters(n uint, p float64) (m, k uint) {
 	return bloom.EstimateParameters(n, p)
 }
+
+// IsPush returns true iff the request was pushed by this
+// package.
+func IsPush(r *http.Request) bool {
+	_, isPush := r.Header[pushSentinalHeader]
+	return isPush
+}
