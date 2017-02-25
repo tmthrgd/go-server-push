@@ -31,8 +31,8 @@ import (
 )
 
 const (
-	pushSentinalHeader = "X-H2-Push"
-	defaultCookieName  = "X-H2-Push"
+	sentinalHeader    = "X-H2-Push"
+	defaultCookieName = "X-H2-Push"
 )
 
 var (
@@ -52,7 +52,7 @@ type options struct {
 	pushOptions http.PushOptions
 }
 
-type serverPusherResponseWriter struct {
+type responseWriter struct {
 	http.ResponseWriter
 	http.Pusher
 	req *http.Request
@@ -66,7 +66,7 @@ type serverPusherResponseWriter struct {
 	wroteHeader bool
 }
 
-func (w *serverPusherResponseWriter) WriteHeader(code int) {
+func (w *responseWriter) WriteHeader(code int) {
 	if w.wroteHeader {
 		w.ResponseWriter.WriteHeader(code)
 		return
@@ -91,7 +91,7 @@ outer:
 	w.ResponseWriter.WriteHeader(code)
 }
 
-func (w *serverPusherResponseWriter) pushLink(link string) error {
+func (w *responseWriter) pushLink(link string) error {
 	fields := strings.FieldsFunc(link, func(r rune) bool {
 		return r == ';' || unicode.IsSpace(r)
 	})
@@ -136,7 +136,7 @@ func (w *serverPusherResponseWriter) pushLink(link string) error {
 	return nil
 }
 
-func (w *serverPusherResponseWriter) loadBloomFilter() {
+func (w *responseWriter) loadBloomFilter() {
 	c, err := w.req.Cookie(w.cookie.Name)
 	if err != nil || c.Value == "" {
 		w.bloom = bloom.New(w.m, w.k)
@@ -169,7 +169,7 @@ func (w *serverPusherResponseWriter) loadBloomFilter() {
 	w.bloom = f
 }
 
-func (w *serverPusherResponseWriter) saveBloomFilter() (err error) {
+func (w *responseWriter) saveBloomFilter() (err error) {
 	if !w.didPush {
 		return
 	}
@@ -207,19 +207,19 @@ func (w *serverPusherResponseWriter) saveBloomFilter() (err error) {
 	return
 }
 
-type serverPusher struct {
+type pushHandler struct {
 	http.Handler
 	options
 }
 
-func (s *serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p, ok := w.(http.Pusher)
 	if !ok {
 		s.Handler.ServeHTTP(w, r)
 		return
 	}
 
-	s.Handler.ServeHTTP(&serverPusherResponseWriter{
+	s.Handler.ServeHTTP(&responseWriter{
 		ResponseWriter: w,
 		Pusher:         p,
 		req:            r,
@@ -237,7 +237,7 @@ type Options struct {
 
 // New wraps the given http.Handler in a push aware handler.
 func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
-	s := &serverPusher{
+	s := &pushHandler{
 		Handler: handler,
 		options: options{
 			m: m,
@@ -266,7 +266,7 @@ func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
 		h[k] = v
 	}
 
-	h[pushSentinalHeader] = []string{"1"}
+	h[sentinalHeader] = []string{"1"}
 	s.pushOptions.Header = h
 	return s
 }
@@ -279,6 +279,6 @@ func EstimateParameters(n uint, p float64) (m, k uint) {
 // IsPush returns true iff the request was pushed by this
 // package.
 func IsPush(r *http.Request) bool {
-	_, isPush := r.Header[pushSentinalHeader]
+	_, isPush := r.Header[sentinalHeader]
 	return isPush
 }
