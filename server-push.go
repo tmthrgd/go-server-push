@@ -3,7 +3,18 @@
 // Modified BSD License license that can be found in
 // the LICENSE file.
 
-package main
+// Package serverpush implements a HTTP/2 Server Push
+// aware http.Handler.
+//
+// It looks for Link headers in the response with
+// rel=preload and will automatically push each
+// linked resource. If the nopush attribute is
+// included the resource will not be pushed.
+//
+// It uses a DEFLATE compressed bloom filter to store
+// a probabilistic view of resources that have already
+// been pushed to the client.
+package serverpush
 
 import (
 	"bytes"
@@ -22,14 +33,18 @@ import (
 
 const (
 	pushSentinalHeader = "X-H2-Push"
-	pushBloomCookie    = "X-H2-Push"
+	defaultCookieName  = "X-H2-Push"
 )
-
-var pushBloomM, pushBloomK = bloom.EstimateParameters(96, 0.05)
 
 var (
 	flateReaderPool sync.Pool
 	flateWriterPool sync.Pool
+
+	bufferPool = &sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
 )
 
 type serverPusherResponseWriter struct {
@@ -42,6 +57,8 @@ type serverPusherResponseWriter struct {
 	loadOnce sync.Once
 	bloom    *bloom.BloomFilter
 	didPush  bool
+	m, k     uint
+	cookie   string
 
 	wroteHeader bool
 }
@@ -117,9 +134,9 @@ func (w *serverPusherResponseWriter) pushLink(link string) error {
 }
 
 func (w *serverPusherResponseWriter) loadBloomFilter() {
-	c, err := w.req.Cookie(pushBloomCookie)
+	c, err := w.req.Cookie(w.cookie)
 	if err != nil || c.Value == "" {
-		w.bloom = bloom.New(pushBloomM, pushBloomK)
+		w.bloom = bloom.New(w.m, w.k)
 		return
 	}
 
@@ -137,7 +154,7 @@ func (w *serverPusherResponseWriter) loadBloomFilter() {
 	if _, err := f.ReadFrom(fr); err != nil {
 		log.Println(err)
 
-		f = bloom.New(pushBloomM, pushBloomK)
+		f = bloom.New(w.m, w.k)
 	}
 
 	if err := fr.Close(); err != nil {
@@ -179,7 +196,7 @@ func (w *serverPusherResponseWriter) saveBloomFilter() (err error) {
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:  pushBloomCookie,
+		Name:  w.cookie,
 		Value: buf.String(),
 
 		MaxAge:   int(90 * 24 * time.Hour / time.Second),
@@ -194,9 +211,12 @@ func (w *serverPusherResponseWriter) saveBloomFilter() (err error) {
 
 type serverPusher struct {
 	http.Handler
+
+	m, k   uint
+	cookie string
 }
 
-func (s serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p, ok := w.(http.Pusher)
 	if !ok {
 		s.Handler.ServeHTTP(w, r)
@@ -213,5 +233,26 @@ func (s serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				pushSentinalHeader: []string{"1"},
 			},
 		},
+
+		m:      s.m,
+		k:      s.k,
+		cookie: s.cookie,
 	}, r)
+}
+
+// NewWithCookie wraps the given http.Handler in a push aware
+// handler, using a given cookie name to store the bloom filter
+// in.
+func NewWithCookie(m, k uint, cookie string, handler http.Handler) http.Handler {
+	return &serverPusher{handler, m, k, cookie}
+}
+
+// New wraps the given http.Handler in a push aware handler.
+func New(m, k uint, handler http.Handler) http.Handler {
+	return NewWithCookie(m, k, defaultCookieName, handler)
+}
+
+// EstimateParameters estimates requirements for m and k.
+func EstimateParameters(n uint, p float64) (m, k uint) {
+	return bloom.EstimateParameters(n, p)
 }
