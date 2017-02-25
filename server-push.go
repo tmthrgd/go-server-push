@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 	"unicode"
 
 	"github.com/willf/bloom"
@@ -47,18 +46,22 @@ var (
 	}
 )
 
+type options struct {
+	m, k        uint
+	cookie      http.Cookie
+	pushOptions http.PushOptions
+}
+
 type serverPusherResponseWriter struct {
 	http.ResponseWriter
 	http.Pusher
 	req *http.Request
 
-	opts *http.PushOptions
+	*options
 
 	loadOnce sync.Once
 	bloom    *bloom.BloomFilter
 	didPush  bool
-	m, k     uint
-	cookie   string
 
 	wroteHeader bool
 }
@@ -124,7 +127,7 @@ func (w *serverPusherResponseWriter) pushLink(link string) error {
 		return nil
 	}
 
-	if err := w.Push(path, w.opts); err != nil {
+	if err := w.Push(path, &w.pushOptions); err != nil {
 		return err
 	}
 
@@ -134,7 +137,7 @@ func (w *serverPusherResponseWriter) pushLink(link string) error {
 }
 
 func (w *serverPusherResponseWriter) loadBloomFilter() {
-	c, err := w.req.Cookie(w.cookie)
+	c, err := w.req.Cookie(w.cookie.Name)
 	if err != nil || c.Value == "" {
 		w.bloom = bloom.New(w.m, w.k)
 		return
@@ -195,14 +198,9 @@ func (w *serverPusherResponseWriter) saveBloomFilter() (err error) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:  w.cookie,
-		Value: buf.String(),
-
-		MaxAge:   int(90 * 24 * time.Hour / time.Second),
-		Secure:   true,
-		HttpOnly: true,
-	})
+	c := w.cookie
+	c.Value = buf.String()
+	http.SetCookie(w, &c)
 
 	buf.Reset()
 	bufferPool.Put(buf)
@@ -211,9 +209,7 @@ func (w *serverPusherResponseWriter) saveBloomFilter() (err error) {
 
 type serverPusher struct {
 	http.Handler
-
-	m, k   uint
-	cookie string
+	options
 }
 
 func (s *serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -228,28 +224,51 @@ func (s *serverPusher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Pusher:         p,
 		req:            r,
 
-		opts: &http.PushOptions{
-			Header: http.Header{
-				pushSentinalHeader: []string{"1"},
-			},
-		},
-
-		m:      s.m,
-		k:      s.k,
-		cookie: s.cookie,
+		options: &s.options,
 	}, r)
 }
 
-// NewWithCookie wraps the given http.Handler in a push aware
-// handler, using a given cookie name to store the bloom filter
-// in.
-func NewWithCookie(m, k uint, cookie string, handler http.Handler) http.Handler {
-	return &serverPusher{handler, m, k, cookie}
+// Options specifies additional options to change the
+// behaviour of the handler.
+type Options struct {
+	Cookie      *http.Cookie
+	PushOptions *http.PushOptions
 }
 
 // New wraps the given http.Handler in a push aware handler.
-func New(m, k uint, handler http.Handler) http.Handler {
-	return NewWithCookie(m, k, defaultCookieName, handler)
+func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
+	s := &serverPusher{
+		Handler: handler,
+		options: options{
+			m: m,
+			k: k,
+		},
+	}
+
+	if opts != nil && opts.Cookie != nil {
+		s.cookie = *opts.Cookie
+	} else {
+		s.cookie = http.Cookie{
+			Name: defaultCookieName,
+
+			MaxAge:   7776000,
+			Secure:   true,
+			HttpOnly: true,
+		}
+	}
+
+	if opts != nil && opts.PushOptions != nil {
+		s.pushOptions = *opts.PushOptions
+	}
+
+	h := make(http.Header, 1+len(s.pushOptions.Header))
+	for k, v := range s.pushOptions.Header {
+		h[k] = v
+	}
+
+	h[pushSentinalHeader] = []string{"1"}
+	s.pushOptions.Header = h
+	return s
 }
 
 // EstimateParameters estimates requirements for m and k.
