@@ -91,10 +91,12 @@ outer:
 	w.ResponseWriter.WriteHeader(code)
 }
 
+func isFieldSeperator(r rune) bool {
+	return r == ';' || unicode.IsSpace(r)
+}
+
 func (w *responseWriter) pushLink(link string) error {
-	fields := strings.FieldsFunc(link, func(r rune) bool {
-		return r == ';' || unicode.IsSpace(r)
-	})
+	fields := strings.FieldsFunc(link, isFieldSeperator)
 	if len(fields) < 2 {
 		return nil
 	}
