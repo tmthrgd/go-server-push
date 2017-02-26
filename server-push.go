@@ -66,8 +66,8 @@ type responseWriter struct {
 
 	options
 
-	loadOnce sync.Once
 	bloom    *bloom.BloomFilter
+	loadOnce sync.Once
 	didPush  bool
 
 	wroteHeader bool
