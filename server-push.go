@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	sentinalHeader    = "X-H2-Push"
+	sentinelHeader    = "X-H2-Push"
 	defaultCookieName = "X-H2-Push"
 )
 
@@ -91,12 +91,12 @@ outer:
 	w.ResponseWriter.WriteHeader(code)
 }
 
-func isFieldSeperator(r rune) bool {
+func isFieldSeparator(r rune) bool {
 	return r == ';' || unicode.IsSpace(r)
 }
 
 func (w *responseWriter) pushLink(link string) error {
-	fields := strings.FieldsFunc(link, isFieldSeperator)
+	fields := strings.FieldsFunc(link, isFieldSeparator)
 	if len(fields) < 2 {
 		return nil
 	}
@@ -268,7 +268,7 @@ func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
 		h[k] = v
 	}
 
-	h[sentinalHeader] = []string{"1"}
+	h[sentinelHeader] = []string{"1"}
 	s.pushOptions.Header = h
 	return s
 }
@@ -281,6 +281,6 @@ func EstimateParameters(n uint, p float64) (m, k uint) {
 // IsPush returns true iff the request was pushed by this
 // package.
 func IsPush(r *http.Request) bool {
-	_, isPush := r.Header[sentinalHeader]
+	_, isPush := r.Header[sentinelHeader]
 	return isPush
 }
