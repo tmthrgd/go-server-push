@@ -44,11 +44,18 @@ var (
 			return new(bytes.Buffer)
 		},
 	}
+
+	proxyHeaders = map[string]struct{}{
+		"Accept-Encoding": struct{}{},
+		"Accept-Language": struct{}{},
+		"Cache-Control":   struct{}{},
+		"User-Agent":      struct{}{},
+	}
 )
 
 type options struct {
 	m, k        uint
-	cookie      http.Cookie
+	cookie      *http.Cookie
 	pushOptions http.PushOptions
 }
 
@@ -57,7 +64,7 @@ type responseWriter struct {
 	http.Pusher
 	req *http.Request
 
-	*options
+	options
 
 	loadOnce sync.Once
 	bloom    *bloom.BloomFilter
@@ -200,7 +207,7 @@ func (w *responseWriter) saveBloomFilter() (err error) {
 		return
 	}
 
-	c := w.cookie
+	c := *w.cookie
 	c.Value = buf.String()
 	http.SetCookie(w, &c)
 
@@ -221,13 +228,26 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.Handler.ServeHTTP(&responseWriter{
+	h := make(http.Header, 1+len(s.pushOptions.Header)+len(proxyHeaders))
+	for k, v := range s.pushOptions.Header {
+		h[k] = v
+	}
+
+	for k := range proxyHeaders {
+		h[k] = r.Header[k]
+	}
+
+	h[sentinelHeader] = []string{"1"}
+
+	rw := &responseWriter{
 		ResponseWriter: w,
 		Pusher:         p,
 		req:            r,
 
-		options: &s.options,
-	}, r)
+		options: s.options,
+	}
+	rw.pushOptions.Header = h
+	s.Handler.ServeHTTP(rw, r)
 }
 
 // Options specifies additional options to change the
@@ -248,9 +268,9 @@ func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
 	}
 
 	if opts != nil && opts.Cookie != nil {
-		s.cookie = *opts.Cookie
+		s.cookie = opts.Cookie
 	} else {
-		s.cookie = http.Cookie{
+		s.cookie = &http.Cookie{
 			Name: defaultCookieName,
 
 			MaxAge:   7776000,
@@ -263,13 +283,6 @@ func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
 		s.pushOptions = *opts.PushOptions
 	}
 
-	h := make(http.Header, 1+len(s.pushOptions.Header))
-	for k, v := range s.pushOptions.Header {
-		h[k] = v
-	}
-
-	h[sentinelHeader] = []string{"1"}
-	s.pushOptions.Header = h
 	return s
 }
 
