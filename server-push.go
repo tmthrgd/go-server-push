@@ -45,11 +45,11 @@ var (
 		},
 	}
 
-	proxyHeaders = map[string]struct{}{
-		"Accept-Encoding": struct{}{},
-		"Accept-Language": struct{}{},
-		"Cache-Control":   struct{}{},
-		"User-Agent":      struct{}{},
+	proxyHeaders = []string{
+		"Accept-Encoding",
+		"Accept-Language",
+		"Cache-Control",
+		"User-Agent",
 	}
 )
 
@@ -233,7 +233,7 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h[k] = v
 	}
 
-	for k := range proxyHeaders {
+	for _, k := range proxyHeaders {
 		h[k] = r.Header[k]
 	}
 
