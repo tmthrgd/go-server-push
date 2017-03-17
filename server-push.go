@@ -63,6 +63,7 @@ type responseWriter struct {
 	http.ResponseWriter
 	http.Pusher
 	req *http.Request
+	log *log.Logger
 
 	options
 
@@ -85,14 +86,17 @@ outer:
 	for _, link := range w.Header()["Link"] {
 		for _, value := range strings.Split(link, ",") {
 			if err := w.pushLink(value); err != nil {
-				log.Println(err)
+				if w.log != nil {
+					w.log.Println(err)
+				}
+
 				break outer
 			}
 		}
 	}
 
-	if err := w.saveBloomFilter(); err != nil {
-		log.Println(err)
+	if err := w.saveBloomFilter(); err != nil && w.log != nil {
+		w.log.Println(err)
 	}
 
 	w.ResponseWriter.WriteHeader(code)
@@ -164,15 +168,17 @@ func (w *responseWriter) loadBloomFilter() {
 
 	f := new(bloom.BloomFilter)
 	if _, err := f.ReadFrom(fr); err != nil {
-		log.Println(err)
+		if w.log != nil {
+			w.log.Println(err)
+		}
 
 		f = bloom.New(w.m, w.k)
 	}
 
-	if err := fr.Close(); err != nil {
-		log.Println(err)
-	} else {
+	if err := fr.Close(); err == nil {
 		flateReaderPool.Put(fr)
+	} else if w.log != nil {
+		w.log.Println(err)
 	}
 
 	w.bloom = f
@@ -243,6 +249,7 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ResponseWriter: w,
 		Pusher:         p,
 		req:            r,
+		log:            r.Context().Value(http.ServerContextKey).(*http.Server).ErrorLog,
 
 		options: s.options,
 	}
