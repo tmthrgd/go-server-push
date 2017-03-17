@@ -166,13 +166,13 @@ func (w *responseWriter) loadBloomFilter() {
 		panic(err)
 	}
 
-	f := new(bloom.BloomFilter)
-	if _, err := f.ReadFrom(fr); err != nil {
+	w.bloom = new(bloom.BloomFilter)
+	if _, err := w.bloom.ReadFrom(fr); err != nil {
 		if w.log != nil {
 			w.log.Println(err)
 		}
 
-		f = bloom.New(w.m, w.k)
+		w.bloom = bloom.New(w.m, w.k)
 	}
 
 	if err := fr.Close(); err == nil {
@@ -180,8 +180,6 @@ func (w *responseWriter) loadBloomFilter() {
 	} else if w.log != nil {
 		w.log.Println(err)
 	}
-
-	w.bloom = f
 }
 
 func (w *responseWriter) saveBloomFilter() (err error) {
