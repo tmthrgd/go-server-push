@@ -30,11 +30,6 @@ import (
 	"github.com/willf/bloom"
 )
 
-const (
-	sentinelHeader    = "X-H2-Push"
-	defaultCookieName = "X-H2-Push"
-)
-
 var (
 	flateReaderPool sync.Pool
 	flateWriterPool sync.Pool
@@ -43,13 +38,6 @@ var (
 		New: func() interface{} {
 			return new(bytes.Buffer)
 		},
-	}
-
-	proxyHeaders = []string{
-		"Accept-Encoding",
-		"Accept-Language",
-		"Cache-Control",
-		"User-Agent",
 	}
 )
 
@@ -232,17 +220,6 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h := make(http.Header, 1+len(s.pushOptions.Header)+len(proxyHeaders))
-	for k, v := range s.pushOptions.Header {
-		h[k] = v
-	}
-
-	for _, k := range proxyHeaders {
-		h[k] = r.Header[k]
-	}
-
-	h[sentinelHeader] = []string{"1"}
-
 	rw := &responseWriter{
 		ResponseWriter: w,
 		Pusher:         p,
@@ -251,7 +228,7 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		options: s.options,
 	}
-	rw.pushOptions.Header = h
+	rw.pushOptions.Header = headers(&s.pushOptions, r)
 	s.Handler.ServeHTTP(rw, r)
 }
 
@@ -294,11 +271,4 @@ func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
 // EstimateParameters estimates requirements for m and k.
 func EstimateParameters(n uint, p float64) (m, k uint) {
 	return bloom.EstimateParameters(n, p)
-}
-
-// IsPush returns true iff the request was pushed by this
-// package.
-func IsPush(r *http.Request) bool {
-	_, isPush := r.Header[sentinelHeader]
-	return isPush
 }
