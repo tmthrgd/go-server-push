@@ -13,9 +13,18 @@ type redirectResponseWriter struct {
 	req *http.Request
 
 	opts http.PushOptions
+
+	wroteHeader bool
 }
 
 func (w *redirectResponseWriter) WriteHeader(code int) {
+	if w.wroteHeader {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+
+	w.wroteHeader = true
+
 	location := w.Header()["Location"]
 	if code < 300 || code >= 400 || len(location) != 1 ||
 		location[0] == "" || location[0][0] != '/' {
