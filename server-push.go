@@ -70,6 +70,11 @@ func (w *responseWriter) WriteHeader(code int) {
 
 	w.wroteHeader = true
 
+	if code == http.StatusNotModified {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+
 outer:
 	for _, link := range w.Header()["Link"] {
 		for _, value := range strings.Split(link, ",") {
