@@ -62,13 +62,19 @@ func (pr *redirects) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pr.Handler.ServeHTTP(&redirectResponseWriter{
+	var rw responseWriterFlusherPusher = &redirectResponseWriter{
 		ResponseWriter: w,
 		Pusher:         pusher,
 		req:            r,
 
 		opts: pr.opts,
-	}, r)
+	}
+
+	if c, ok := w.(http.CloseNotifier); ok {
+		rw = &closeNotifierResponseWriter{rw, c}
+	}
+
+	pr.Handler.ServeHTTP(rw, r)
 }
 
 // Redirects wraps the given http.Handler and pushes the Location
