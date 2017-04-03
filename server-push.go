@@ -47,7 +47,7 @@ type options struct {
 	pushOptions http.PushOptions
 }
 
-type responseWriter struct {
+type pushResponseWriter struct {
 	http.ResponseWriter
 	http.Pusher
 	req *http.Request
@@ -62,7 +62,7 @@ type responseWriter struct {
 	wroteHeader bool
 }
 
-func (w *responseWriter) WriteHeader(code int) {
+func (w *pushResponseWriter) WriteHeader(code int) {
 	if w.wroteHeader {
 		w.ResponseWriter.WriteHeader(code)
 		return
@@ -99,7 +99,7 @@ func isFieldSeparator(r rune) bool {
 	return r == ';' || unicode.IsSpace(r)
 }
 
-func (w *responseWriter) pushLink(link string) error {
+func (w *pushResponseWriter) pushLink(link string) error {
 	fields := strings.FieldsFunc(link, isFieldSeparator)
 	if len(fields) < 2 {
 		return nil
@@ -142,7 +142,7 @@ func (w *responseWriter) pushLink(link string) error {
 	return nil
 }
 
-func (w *responseWriter) loadBloomFilter() {
+func (w *pushResponseWriter) loadBloomFilter() {
 	c, err := w.req.Cookie(w.cookie.Name)
 	if err != nil || c.Value == "" {
 		w.bloom = bloom.New(w.m, w.k)
@@ -175,7 +175,7 @@ func (w *responseWriter) loadBloomFilter() {
 	}
 }
 
-func (w *responseWriter) saveBloomFilter() (err error) {
+func (w *pushResponseWriter) saveBloomFilter() (err error) {
 	if !w.didPush {
 		return
 	}
@@ -213,7 +213,7 @@ func (w *responseWriter) saveBloomFilter() (err error) {
 	return
 }
 
-func (w *responseWriter) Flush() {
+func (w *pushResponseWriter) Flush() {
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -231,7 +231,7 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prw := &responseWriter{
+	prw := &pushResponseWriter{
 		ResponseWriter: w,
 		Pusher:         p,
 		req:            r,
