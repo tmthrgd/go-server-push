@@ -231,7 +231,7 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rw := &responseWriter{
+	prw := &responseWriter{
 		ResponseWriter: w,
 		Pusher:         p,
 		req:            r,
@@ -239,7 +239,13 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		options: s.options,
 	}
-	rw.pushOptions.Header = headers(&s.pushOptions, r)
+	prw.pushOptions.Header = headers(&s.pushOptions, r)
+
+	var rw responseWriterFlusherPusher = prw
+	if c, ok := w.(http.CloseNotifier); ok {
+		rw = &closeNotifierResponseWriter{prw, c}
+	}
+
 	s.Handler.ServeHTTP(rw, r)
 }
 
