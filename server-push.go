@@ -76,7 +76,8 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 		return
 	}
 
-	links := header.ParseList(w.Header(), "Link")
+	h := w.Header()
+	links := header.ParseList(h, "Link")
 
 	rest := links[:0]
 	for _, link := range links {
@@ -93,7 +94,7 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 		}
 	}
 
-	w.Header()["Link"] = rest
+	h["Link"] = rest
 
 	if err := w.saveBloomFilter(); err != nil && w.log != nil {
 		w.log.Println(err)
