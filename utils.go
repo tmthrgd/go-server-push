@@ -9,6 +9,7 @@ import "net/http"
 
 const (
 	sentinelHeader    = "X-H2-Push"
+	pushedHeader      = "X-H2-Pushed"
 	defaultCookieName = "X-H2-Push"
 )
 

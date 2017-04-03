@@ -80,8 +80,10 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 	links := header.ParseList(h, "Link")
 
 	rest := links[:0]
+	var pushed []string
+
 	for _, link := range links {
-		pushed, err := w.pushLink(link)
+		didPush, err := w.pushLink(link)
 		if err == http.ErrNotSupported {
 			rest = links
 			break
@@ -89,12 +91,15 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 			w.log.Println(err)
 		}
 
-		if !pushed {
+		if didPush {
+			pushed = append(pushed, link)
+		} else {
 			rest = append(rest, link)
 		}
 	}
 
 	h["Link"] = rest
+	h[pushedHeader] = pushed
 
 	if err := w.saveBloomFilter(); err != nil && w.log != nil {
 		w.log.Println(err)
