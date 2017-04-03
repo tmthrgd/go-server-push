@@ -76,15 +76,24 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 		return
 	}
 
-	for _, link := range header.ParseList(w.Header(), "Link") {
-		if err := w.pushLink(link); err != nil {
-			if w.log != nil && err != http.ErrNotSupported {
-				w.log.Println(err)
-			}
+	links := header.ParseList(w.Header(), "Link")
 
+	rest := links[:0]
+	for _, link := range links {
+		pushed, err := w.pushLink(link)
+		if err == http.ErrNotSupported {
+			rest = links
 			break
+		} else if err != nil && w.log != nil {
+			w.log.Println(err)
+		}
+
+		if !pushed {
+			rest = append(rest, link)
 		}
 	}
+
+	w.Header()["Link"] = rest
 
 	if err := w.saveBloomFilter(); err != nil && w.log != nil {
 		w.log.Println(err)
@@ -97,17 +106,17 @@ func isFieldSeparator(r rune) bool {
 	return r == ';' || unicode.IsSpace(r)
 }
 
-func (w *pushResponseWriter) pushLink(link string) error {
+func (w *pushResponseWriter) pushLink(link string) (pushed bool, err error) {
 	fields := strings.FieldsFunc(link, isFieldSeparator)
 	if len(fields) < 2 {
-		return nil
+		return false, nil
 	}
 
 	path, fields := fields[0], fields[1:]
 	if len(path) < 4 || path[0] != '<' ||
 		path[1] != '/' || path[2] == '/' ||
 		path[len(path)-1] != '>' {
-		return nil
+		return false, nil
 	}
 
 	var isPreload bool
@@ -116,28 +125,28 @@ func (w *pushResponseWriter) pushLink(link string) error {
 		case "rel=preload", `rel="preload"`:
 			isPreload = true
 		case "nopush":
-			return nil
+			return false, nil
 		}
 	}
 
 	if !isPreload {
-		return nil
+		return false, nil
 	}
 
 	path = path[1 : len(path)-1]
 
 	w.loadOnce.Do(w.loadBloomFilter)
 	if w.bloom.TestString(path) {
-		return nil
+		return false, nil
 	}
 
 	if err := w.Push(path, &w.pushOptions); err != nil {
-		return err
+		return false, err
 	}
 
 	w.didPush = true
 	w.bloom.AddString(path)
-	return nil
+	return true, nil
 }
 
 func (w *pushResponseWriter) loadBloomFilter() {
