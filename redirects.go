@@ -34,7 +34,7 @@ func (w *redirectResponseWriter) WriteHeader(code int) {
 
 	w.opts.Header = headers(&w.opts, w.req)
 
-	if err := w.Push(location[0], &w.opts); err != nil {
+	if err := w.Push(location[0], &w.opts); err != nil && err != http.ErrNotSupported {
 		server := w.req.Context().Value(http.ServerContextKey).(*http.Server)
 		if server.ErrorLog != nil {
 			server.ErrorLog.Println(err)

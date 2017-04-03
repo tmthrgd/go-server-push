@@ -79,7 +79,7 @@ outer:
 	for _, link := range w.Header()["Link"] {
 		for _, value := range strings.Split(link, ",") {
 			if err := w.pushLink(value); err != nil {
-				if w.log != nil {
+				if w.log != nil && err != http.ErrNotSupported {
 					w.log.Println(err)
 				}
 
