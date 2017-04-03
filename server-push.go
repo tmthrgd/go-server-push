@@ -213,6 +213,12 @@ func (w *responseWriter) saveBloomFilter() (err error) {
 	return
 }
 
+func (w *responseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 type pushHandler struct {
 	http.Handler
 	options
