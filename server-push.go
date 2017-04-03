@@ -27,6 +27,7 @@ import (
 	"sync"
 	"unicode"
 
+	"github.com/golang/gddo/httputil/header"
 	"github.com/willf/bloom"
 )
 
@@ -75,16 +76,13 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 		return
 	}
 
-outer:
-	for _, link := range w.Header()["Link"] {
-		for _, value := range strings.Split(link, ",") {
-			if err := w.pushLink(value); err != nil {
-				if w.log != nil && err != http.ErrNotSupported {
-					w.log.Println(err)
-				}
-
-				break outer
+	for _, link := range header.ParseList(w.Header(), "Link") {
+		if err := w.pushLink(link); err != nil {
+			if w.log != nil && err != http.ErrNotSupported {
+				w.log.Println(err)
 			}
+
+			break
 		}
 	}
 
