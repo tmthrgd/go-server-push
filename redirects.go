@@ -62,7 +62,7 @@ func (pr *redirects) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rw responseWriterFlusherPusher = &redirectResponseWriter{
+	rrw := &redirectResponseWriter{
 		ResponseWriter: w,
 		Pusher:         pusher,
 		req:            r,
@@ -70,8 +70,9 @@ func (pr *redirects) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		opts: pr.opts,
 	}
 
+	var rw http.ResponseWriter = rrw
 	if c, ok := w.(http.CloseNotifier); ok {
-		rw = &closeNotifierResponseWriter{rw, c}
+		rw = &closeNotifierResponseWriter{rrw, c}
 	}
 
 	pr.Handler.ServeHTTP(rw, r)
