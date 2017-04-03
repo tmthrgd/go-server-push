@@ -44,6 +44,12 @@ func (w *redirectResponseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+func (w *redirectResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 type redirects struct {
 	http.Handler
 	opts http.PushOptions
