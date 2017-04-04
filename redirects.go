@@ -71,8 +71,17 @@ func (pr *redirects) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rw http.ResponseWriter = rrw
-	if c, ok := w.(http.CloseNotifier); ok {
-		rw = &closeNotifierResponseWriter{rrw, c}
+
+	cn, cok := w.(http.CloseNotifier)
+	sw, sok := w.(stringWriter)
+
+	switch {
+	case cok && sok:
+		rw = &closeNotifierStringWriterResponseWriter{rrw, cn, sw}
+	case cok:
+		rw = &closeNotifierResponseWriter{rrw, cn}
+	case sok:
+		rw = &stringWriterResponseWriter{rrw, sw}
 	}
 
 	pr.Handler.ServeHTTP(rw, r)
