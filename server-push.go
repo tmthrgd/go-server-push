@@ -255,8 +255,17 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	prw.pushOptions.Header = headers(&s.pushOptions, r)
 
 	var rw http.ResponseWriter = prw
-	if c, ok := w.(http.CloseNotifier); ok {
-		rw = &closeNotifierResponseWriter{prw, c}
+
+	cn, cok := w.(http.CloseNotifier)
+	sw, sok := w.(stringWriter)
+
+	switch {
+	case cok && sok:
+		rw = &closeNotifierStringWriterResponseWriter{prw, cn, sw}
+	case cok:
+		rw = &closeNotifierResponseWriter{prw, cn}
+	case sok:
+		rw = &stringWriterResponseWriter{prw, sw}
 	}
 
 	s.Handler.ServeHTTP(rw, r)

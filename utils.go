@@ -51,3 +51,18 @@ type closeNotifierResponseWriter struct {
 	responseWriterFlusherPusher
 	http.CloseNotifier
 }
+
+type stringWriter interface {
+	WriteString(s string) (n int, err error)
+}
+
+type stringWriterResponseWriter struct {
+	responseWriterFlusherPusher
+	stringWriter
+}
+
+type closeNotifierStringWriterResponseWriter struct {
+	responseWriterFlusherPusher
+	http.CloseNotifier
+	stringWriter
+}
