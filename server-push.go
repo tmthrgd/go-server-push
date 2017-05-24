@@ -50,17 +50,19 @@ type options struct {
 
 type pushResponseWriter struct {
 	http.ResponseWriter
-	http.Pusher
 	req *http.Request
-	log *log.Logger
 
-	options
+	opts *options
 
 	bloom    *bloom.BloomFilter
 	loadOnce sync.Once
 	didPush  bool
 
 	wroteHeader bool
+}
+
+func (w *pushResponseWriter) logger() *log.Logger {
+	return w.req.Context().Value(http.ServerContextKey).(*http.Server).ErrorLog
 }
 
 func (w *pushResponseWriter) WriteHeader(code int) {
@@ -79,16 +81,26 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 	h := w.Header()
 	links := header.ParseList(h, "Link")
 
+	if len(links) == 0 {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+
+	opts := w.opts.pushOptions
+	opts.Header = headers(&opts, w.req)
+
 	rest := links[:0]
 	var pushed []string
 
 	for _, link := range links {
-		didPush, err := w.pushLink(link)
+		didPush, err := w.pushLink(&opts, link)
 		if err == http.ErrNotSupported {
 			rest = links
 			break
-		} else if err != nil && w.log != nil {
-			w.log.Println(err)
+		} else if err != nil {
+			if log := w.logger(); log != nil {
+				log.Println(err)
+			}
 		}
 
 		if didPush {
@@ -101,8 +113,10 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 	h["Link"] = rest
 	h[pushedHeader] = pushed
 
-	if err := w.saveBloomFilter(); err != nil && w.log != nil {
-		w.log.Println(err)
+	if err := w.saveBloomFilter(); err != nil {
+		if log := w.logger(); log != nil {
+			log.Println(err)
+		}
 	}
 
 	w.ResponseWriter.WriteHeader(code)
@@ -112,7 +126,7 @@ func isFieldSeparator(r rune) bool {
 	return r == ';' || unicode.IsSpace(r)
 }
 
-func (w *pushResponseWriter) pushLink(link string) (pushed bool, err error) {
+func (w *pushResponseWriter) pushLink(opts *http.PushOptions, link string) (pushed bool, err error) {
 	fields := strings.FieldsFunc(link, isFieldSeparator)
 	if len(fields) < 2 {
 		return false, nil
@@ -146,7 +160,7 @@ func (w *pushResponseWriter) pushLink(link string) (pushed bool, err error) {
 		return false, nil
 	}
 
-	if err := w.Push(path, &w.pushOptions); err != nil {
+	if err := w.Push(path, opts); err != nil {
 		return false, err
 	}
 
@@ -156,9 +170,9 @@ func (w *pushResponseWriter) pushLink(link string) (pushed bool, err error) {
 }
 
 func (w *pushResponseWriter) loadBloomFilter() {
-	c, err := w.req.Cookie(w.cookie.Name)
+	c, err := w.req.Cookie(w.opts.cookie.Name)
 	if err != nil || c.Value == "" {
-		w.bloom = bloom.New(w.m, w.k)
+		w.bloom = bloom.New(w.opts.m, w.opts.k)
 		return
 	}
 
@@ -174,17 +188,17 @@ func (w *pushResponseWriter) loadBloomFilter() {
 
 	w.bloom = new(bloom.BloomFilter)
 	if _, err := w.bloom.ReadFrom(fr); err != nil {
-		if w.log != nil {
-			w.log.Println(err)
+		if log := w.logger(); log != nil {
+			log.Println(err)
 		}
 
-		w.bloom = bloom.New(w.m, w.k)
+		w.bloom = bloom.New(w.opts.m, w.opts.k)
 	}
 
 	if err := fr.Close(); err == nil {
 		flateReaderPool.Put(fr)
-	} else if w.log != nil {
-		w.log.Println(err)
+	} else if log := w.logger(); log != nil {
+		log.Println(err)
 	}
 }
 
@@ -217,13 +231,17 @@ func (w *pushResponseWriter) saveBloomFilter() (err error) {
 		return
 	}
 
-	c := *w.cookie
+	c := *w.opts.cookie
 	c.Value = buf.String()
 	http.SetCookie(w, &c)
 
 	buf.Reset()
 	bufferPool.Put(buf)
 	return
+}
+
+func (w *pushResponseWriter) Push(target string, opts *http.PushOptions) error {
+	return w.ResponseWriter.(http.Pusher).Push(target, opts)
 }
 
 func (w *pushResponseWriter) Flush() {
@@ -238,21 +256,17 @@ type pushHandler struct {
 }
 
 func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	p, ok := w.(http.Pusher)
-	if !ok {
+	if _, ok := w.(http.Pusher); !ok {
 		s.Handler.ServeHTTP(w, r)
 		return
 	}
 
 	prw := &pushResponseWriter{
 		ResponseWriter: w,
-		Pusher:         p,
 		req:            r,
-		log:            r.Context().Value(http.ServerContextKey).(*http.Server).ErrorLog,
 
-		options: s.options,
+		opts: &s.options,
 	}
-	prw.pushOptions.Header = headers(&s.pushOptions, r)
 
 	var rw http.ResponseWriter = prw
 
