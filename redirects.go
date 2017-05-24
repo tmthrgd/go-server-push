@@ -9,10 +9,9 @@ import "net/http"
 
 type redirectResponseWriter struct {
 	http.ResponseWriter
-	http.Pusher
 	req *http.Request
 
-	opts http.PushOptions
+	opts *http.PushOptions
 
 	wroteHeader bool
 }
@@ -32,9 +31,10 @@ func (w *redirectResponseWriter) WriteHeader(code int) {
 		return
 	}
 
-	w.opts.Header = headers(&w.opts, w.req)
+	opts := *w.opts
+	opts.Header = headers(w.opts, w.req)
 
-	if err := w.Push(location[0], &w.opts); err != nil && err != http.ErrNotSupported {
+	if err := w.Push(location[0], &opts); err != nil && err != http.ErrNotSupported {
 		server := w.req.Context().Value(http.ServerContextKey).(*http.Server)
 		if server.ErrorLog != nil {
 			server.ErrorLog.Println(err)
@@ -42,6 +42,10 @@ func (w *redirectResponseWriter) WriteHeader(code int) {
 	}
 
 	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *redirectResponseWriter) Push(target string, opts *http.PushOptions) error {
+	return w.ResponseWriter.(http.Pusher).Push(target, opts)
 }
 
 func (w *redirectResponseWriter) Flush() {
@@ -56,18 +60,16 @@ type redirects struct {
 }
 
 func (pr *redirects) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	pusher, ok := w.(http.Pusher)
-	if !ok {
+	if _, ok := w.(http.Pusher); !ok {
 		pr.Handler.ServeHTTP(w, r)
 		return
 	}
 
 	rrw := &redirectResponseWriter{
 		ResponseWriter: w,
-		Pusher:         pusher,
 		req:            r,
 
-		opts: pr.opts,
+		opts: &pr.opts,
 	}
 
 	var rw http.ResponseWriter = rrw
