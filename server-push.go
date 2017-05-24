@@ -54,9 +54,9 @@ type pushResponseWriter struct {
 
 	opts *options
 
-	bloom    *bloom.BloomFilter
-	loadOnce sync.Once
-	didPush  bool
+	bloom   *bloom.BloomFilter
+	loaded  bool
+	didPush bool
 
 	wroteHeader bool
 }
@@ -155,7 +155,11 @@ func (w *pushResponseWriter) pushLink(opts *http.PushOptions, link string) (push
 
 	path = path[1 : len(path)-1]
 
-	w.loadOnce.Do(w.loadBloomFilter)
+	if !w.loaded {
+		w.loadBloomFilter()
+		w.loaded = true
+	}
+
 	if w.bloom.TestString(path) {
 		return false, nil
 	}
