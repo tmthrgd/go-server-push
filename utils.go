@@ -40,14 +40,3 @@ func IsPush(r *http.Request) bool {
 	_, isPush := r.Header[sentinelHeader]
 	return isPush
 }
-
-type responseWriterFlusherPusher interface {
-	http.ResponseWriter
-	http.Flusher
-	http.Pusher
-}
-
-type closeNotifierResponseWriter struct {
-	responseWriterFlusherPusher
-	http.CloseNotifier
-}

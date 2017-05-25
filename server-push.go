@@ -278,8 +278,8 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var rw http.ResponseWriter = prw
 
-	if cn, ok := w.(http.CloseNotifier); ok {
-		rw = &closeNotifierResponseWriter{prw, cn}
+	if _, ok := w.(http.CloseNotifier); ok {
+		rw = pushCloseNotifyResponseWriter{prw}
 	}
 
 	s.Handler.ServeHTTP(rw, r)
@@ -324,4 +324,14 @@ func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
 // EstimateParameters estimates requirements for m and k.
 func EstimateParameters(n uint, p float64) (m, k uint) {
 	return bloom.EstimateParameters(n, p)
+}
+
+// This struct is intentionally small (1 pointer wide) so as to
+// fit inside an interface{} without causing an allocaction.
+type pushCloseNotifyResponseWriter struct{ *pushResponseWriter }
+
+var _ http.CloseNotifier = pushCloseNotifyResponseWriter{}
+
+func (w pushCloseNotifyResponseWriter) CloseNotify() <-chan bool {
+	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
