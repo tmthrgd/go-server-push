@@ -122,6 +122,10 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+func (w *pushResponseWriter) WriteString(s string) (n int, err error) {
+	return io.WriteString(w.ResponseWriter, s)
+}
+
 func isFieldSeparator(r rune) bool {
 	return r == ';' || unicode.IsSpace(r)
 }
@@ -274,16 +278,8 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var rw http.ResponseWriter = prw
 
-	cn, cok := w.(http.CloseNotifier)
-	sw, sok := w.(stringWriter)
-
-	switch {
-	case cok && sok:
-		rw = &closeNotifierStringWriterResponseWriter{prw, cn, sw}
-	case cok:
+	if cn, ok := w.(http.CloseNotifier); ok {
 		rw = &closeNotifierResponseWriter{prw, cn}
-	case sok:
-		rw = &stringWriterResponseWriter{prw, sw}
 	}
 
 	s.Handler.ServeHTTP(rw, r)

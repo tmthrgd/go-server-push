@@ -5,7 +5,10 @@
 
 package serverpush
 
-import "net/http"
+import (
+	"io"
+	"net/http"
+)
 
 type redirectResponseWriter struct {
 	http.ResponseWriter
@@ -44,6 +47,10 @@ func (w *redirectResponseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+func (w *redirectResponseWriter) WriteString(s string) (n int, err error) {
+	return io.WriteString(w.ResponseWriter, s)
+}
+
 func (w *redirectResponseWriter) Push(target string, opts *http.PushOptions) error {
 	return w.ResponseWriter.(http.Pusher).Push(target, opts)
 }
@@ -74,16 +81,8 @@ func (pr *redirects) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var rw http.ResponseWriter = rrw
 
-	cn, cok := w.(http.CloseNotifier)
-	sw, sok := w.(stringWriter)
-
-	switch {
-	case cok && sok:
-		rw = &closeNotifierStringWriterResponseWriter{rrw, cn, sw}
-	case cok:
+	if cn, ok := w.(http.CloseNotifier); ok {
 		rw = &closeNotifierResponseWriter{rrw, cn}
-	case sok:
-		rw = &stringWriterResponseWriter{rrw, sw}
 	}
 
 	pr.Handler.ServeHTTP(rw, r)
