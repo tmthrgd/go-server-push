@@ -66,14 +66,10 @@ func (w *pushResponseWriter) logger() *log.Logger {
 }
 
 func (w *pushResponseWriter) WriteHeader(code int) {
-	if w.wroteHeader {
-		w.ResponseWriter.WriteHeader(code)
-		return
-	}
-
+	wroteHeader := w.wroteHeader
 	w.wroteHeader = true
 
-	if code == http.StatusNotModified {
+	if wroteHeader || code == http.StatusNotModified {
 		w.ResponseWriter.WriteHeader(code)
 		return
 	}
