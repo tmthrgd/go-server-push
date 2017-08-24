@@ -15,30 +15,24 @@ type redirectResponseWriter struct {
 	req *http.Request
 
 	opts *http.PushOptions
-
-	wroteHeader bool
 }
 
 func (w *redirectResponseWriter) WriteHeader(code int) {
-	if w.wroteHeader {
-		w.ResponseWriter.WriteHeader(code)
-		return
-	}
-
-	w.wroteHeader = true
+	req := w.req
+	w.req = nil
 
 	location := w.Header()["Location"]
-	if code < 300 || code >= 400 || len(location) != 1 ||
+	if req == nil || code < 300 || code >= 400 || len(location) != 1 ||
 		location[0] == "" || location[0][0] != '/' {
 		w.ResponseWriter.WriteHeader(code)
 		return
 	}
 
 	opts := *w.opts
-	opts.Header = headers(w.opts, w.req)
+	opts.Header = headers(w.opts, req)
 
 	if err := w.Push(location[0], &opts); err != nil && err != http.ErrNotSupported {
-		server := w.req.Context().Value(http.ServerContextKey).(*http.Server)
+		server := req.Context().Value(http.ServerContextKey).(*http.Server)
 		if server.ErrorLog != nil {
 			server.ErrorLog.Println(err)
 		}
