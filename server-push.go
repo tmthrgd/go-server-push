@@ -56,8 +56,6 @@ type pushResponseWriter struct {
 
 	bloom *bloom.BloomFilter
 
-	didPush bool
-
 	wroteHeader bool
 }
 
@@ -109,9 +107,11 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 	h["Link"] = rest
 	h[pushedHeader] = pushed
 
-	if err := w.saveBloomFilter(); err != nil {
-		if log := w.logger(); log != nil {
-			log.Println(err)
+	if len(pushed) != 0 {
+		if err := w.saveBloomFilter(); err != nil {
+			if log := w.logger(); log != nil {
+				log.Println(err)
+			}
 		}
 	}
 
@@ -167,7 +167,6 @@ func (w *pushResponseWriter) pushLink(opts *http.PushOptions, link string) (push
 		return false, err
 	}
 
-	w.didPush = true
 	w.bloom.AddString(path)
 	return true, nil
 }
@@ -206,10 +205,6 @@ func (w *pushResponseWriter) loadBloomFilter() {
 }
 
 func (w *pushResponseWriter) saveBloomFilter() (err error) {
-	if !w.didPush {
-		return
-	}
-
 	buf := bufferPool.Get().(*bytes.Buffer)
 	b64w := base64.NewEncoder(base64.RawStdEncoding, buf)
 
