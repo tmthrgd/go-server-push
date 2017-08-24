@@ -274,7 +274,7 @@ func (s *pushHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rw http.ResponseWriter = prw
 
 	if _, ok := w.(http.CloseNotifier); ok {
-		rw = pushCloseNotifyResponseWriter{prw}
+		rw = closeNotifyPushResponseWriter{prw}
 	}
 
 	s.Handler.ServeHTTP(rw, r)
@@ -323,10 +323,10 @@ func EstimateParameters(n uint, p float64) (m, k uint) {
 
 // This struct is intentionally small (1 pointer wide) so as to
 // fit inside an interface{} without causing an allocaction.
-type pushCloseNotifyResponseWriter struct{ *pushResponseWriter }
+type closeNotifyPushResponseWriter struct{ *pushResponseWriter }
 
-var _ http.CloseNotifier = pushCloseNotifyResponseWriter{}
+var _ http.CloseNotifier = closeNotifyPushResponseWriter{}
 
-func (w pushCloseNotifyResponseWriter) CloseNotify() <-chan bool {
+func (w closeNotifyPushResponseWriter) CloseNotify() <-chan bool {
 	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }

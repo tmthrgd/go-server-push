@@ -82,7 +82,7 @@ func (pr *redirects) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rw http.ResponseWriter = rrw
 
 	if _, ok := w.(http.CloseNotifier); ok {
-		rw = redirectsCloseNotifyResponseWriter{rrw}
+		rw = closeNotifyRedirectsResponseWriter{rrw}
 	}
 
 	pr.Handler.ServeHTTP(rw, r)
@@ -104,10 +104,10 @@ func Redirects(h http.Handler, opts *http.PushOptions) http.Handler {
 
 // This struct is intentionally small (1 pointer wide) so as to
 // fit inside an interface{} without causing an allocaction.
-type redirectsCloseNotifyResponseWriter struct{ *redirectResponseWriter }
+type closeNotifyRedirectsResponseWriter struct{ *redirectResponseWriter }
 
-var _ http.CloseNotifier = redirectsCloseNotifyResponseWriter{}
+var _ http.CloseNotifier = closeNotifyRedirectsResponseWriter{}
 
-func (w redirectsCloseNotifyResponseWriter) CloseNotify() <-chan bool {
+func (w closeNotifyRedirectsResponseWriter) CloseNotify() <-chan bool {
 	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
