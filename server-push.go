@@ -21,13 +21,13 @@ import (
 	"compress/flate"
 	"encoding/base64"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"unicode"
 
 	"github.com/golang/gddo/httputil/header"
+	"github.com/tmthrgd/httputils"
 	"github.com/willf/bloom"
 )
 
@@ -59,10 +59,6 @@ type pushResponseWriter struct {
 	wroteHeader bool
 }
 
-func (w *pushResponseWriter) logger() *log.Logger {
-	return w.req.Context().Value(http.ServerContextKey).(*http.Server).ErrorLog
-}
-
 func (w *pushResponseWriter) WriteHeader(code int) {
 	wroteHeader := w.wroteHeader
 	w.wroteHeader = true
@@ -92,9 +88,7 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 			rest = links
 			break
 		} else if err != nil {
-			if log := w.logger(); log != nil {
-				log.Println(err)
-			}
+			httputils.RequestLogf(w.req, "go-server-push: error pushing link %q: %#v", link, err)
 		}
 
 		if didPush {
@@ -109,9 +103,7 @@ func (w *pushResponseWriter) WriteHeader(code int) {
 
 	if len(pushed) != 0 {
 		if err := w.saveBloomFilter(); err != nil {
-			if log := w.logger(); log != nil {
-				log.Println(err)
-			}
+			httputils.RequestLogf(w.req, "go-server-push: error saving bloom filter: %#v", err)
 		}
 	}
 
@@ -190,18 +182,16 @@ func (w *pushResponseWriter) loadBloomFilter() {
 
 	w.bloom = new(bloom.BloomFilter)
 	if _, err := w.bloom.ReadFrom(fr); err != nil {
-		if log := w.logger(); log != nil {
-			log.Println(err)
-		}
+		httputils.RequestLogf(w.req, "go-server-push: error loading bloom filter: %#v", err)
 
 		w.bloom = bloom.New(w.opts.m, w.opts.k)
 	}
 
-	if err := fr.Close(); err == nil {
-		flateReaderPool.Put(fr)
-	} else if log := w.logger(); log != nil {
-		log.Println(err)
+	if err := fr.Close(); err != nil {
+		httputils.RequestLogf(w.req, "go-server-push: error closing flate writer: %#v", err)
 	}
+
+	flateReaderPool.Put(fr)
 }
 
 func (w *pushResponseWriter) saveBloomFilter() (err error) {

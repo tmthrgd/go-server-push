@@ -8,6 +8,8 @@ package serverpush
 import (
 	"io"
 	"net/http"
+
+	"github.com/tmthrgd/httputils"
 )
 
 type redirectResponseWriter struct {
@@ -32,10 +34,7 @@ func (w *redirectResponseWriter) WriteHeader(code int) {
 	opts.Header = headers(w.opts, req)
 
 	if err := w.Push(location[0], &opts); err != nil && err != http.ErrNotSupported {
-		server := req.Context().Value(http.ServerContextKey).(*http.Server)
-		if server.ErrorLog != nil {
-			server.ErrorLog.Println(err)
-		}
+		httputils.RequestLogf(req, "go-server-push: error pushing resource %q: %#v", location[0], err)
 	}
 
 	w.ResponseWriter.WriteHeader(code)
