@@ -23,9 +23,9 @@ func (w *redirectResponseWriter) WriteHeader(code int) {
 	req := w.req
 	w.req = nil
 
-	location := w.Header()["Location"]
-	if req == nil || code < 300 || code >= 400 || len(location) != 1 ||
-		location[0] == "" || location[0][0] != '/' {
+	location := w.Header().Get("Location")
+	if req == nil || code < 300 || code >= 400 ||
+		location == "" || location[0] != '/' {
 		w.ResponseWriter.WriteHeader(code)
 		return
 	}
@@ -33,8 +33,8 @@ func (w *redirectResponseWriter) WriteHeader(code int) {
 	opts := *w.opts
 	opts.Header = headers(w.opts, req)
 
-	if err := w.Push(location[0], &opts); err != nil && err != http.ErrNotSupported {
-		httputils.RequestLogf(req, "go-server-push: error pushing resource %q: %#v", location[0], err)
+	if err := w.Push(location, &opts); err != nil && err != http.ErrNotSupported {
+		httputils.RequestLogf(req, "go-server-push: error pushing resource %q: %#v", location, err)
 	}
 
 	w.ResponseWriter.WriteHeader(code)

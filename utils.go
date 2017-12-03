@@ -21,7 +21,7 @@ var proxyHeaders = []string{
 }
 
 func headers(opts *http.PushOptions, r *http.Request) http.Header {
-	h := make(http.Header, 1+len(opts.Header)+len(proxyHeaders))
+	h := make(http.Header, len(opts.Header)+len(proxyHeaders)+1)
 	for k, v := range opts.Header {
 		h[k] = v
 	}
@@ -30,7 +30,7 @@ func headers(opts *http.PushOptions, r *http.Request) http.Header {
 		h[k] = r.Header[k]
 	}
 
-	h[sentinelHeader] = []string{"1"}
+	h.Set(sentinelHeader, "1")
 	return h
 }
 
