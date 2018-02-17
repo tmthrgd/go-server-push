@@ -3,17 +3,6 @@
 // Modified BSD License license that can be found in
 // the LICENSE file.
 
-// Package serverpush implements a HTTP/2 Server Push
-// aware http.Handler.
-//
-// It looks for Link headers in the response with
-// rel=preload and will automatically push each
-// linked resource. If the nopush attribute is
-// included the resource will not be pushed.
-//
-// It uses a DEFLATE compressed bloom filter to store
-// a probabilistic view of resources that have already
-// been pushed to the client.
 package serverpush
 
 import (
@@ -299,6 +288,13 @@ func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
 	}
 
 	return s
+}
+
+// Wrapper returns a Middleware that calls New.
+func Wrapper(m, k uint, opts *Options) Middleware {
+	return func(h http.Handler) http.Handler {
+		return New(m, k, h, opts)
+	}
 }
 
 // EstimateParameters estimates requirements for m and k.

@@ -95,6 +95,13 @@ func Redirects(h http.Handler, opts *http.PushOptions) http.Handler {
 	return r
 }
 
+// RedirectsWrap returns a Middleware that calls Redirects.
+func RedirectsWrap(opts *http.PushOptions) Middleware {
+	return func(h http.Handler) http.Handler {
+		return Redirects(h, opts)
+	}
+}
+
 // This struct is intentionally small (1 pointer wide) so as to
 // fit inside an interface{} without causing an allocaction.
 type closeNotifyRedirectsResponseWriter struct{ *redirectResponseWriter }
