@@ -262,7 +262,7 @@ type Options struct {
 }
 
 // New wraps the given http.Handler in a push aware handler.
-func New(m, k uint, handler http.Handler, opts *Options) http.Handler {
+func New(m, k uint, handler http.Handler, opts *Options) Handler {
 	s := &pushHandler{
 		Handler: handler,
 		options: options{

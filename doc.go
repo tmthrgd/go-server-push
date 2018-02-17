@@ -18,6 +18,9 @@ package serverpush
 
 import "net/http"
 
+// Handler is an alias to http.Handler for godoc.
+type Handler = http.Handler
+
 // Middleware represents a function that wraps an
 // http.Handler.
 type Middleware = func(http.Handler) http.Handler

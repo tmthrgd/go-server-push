@@ -83,7 +83,7 @@ func (pr *redirects) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Redirects wraps the given http.Handler and pushes the Location
 // of redirects to clients.
-func Redirects(h http.Handler, opts *http.PushOptions) http.Handler {
+func Redirects(h http.Handler, opts *http.PushOptions) Handler {
 	r := &redirects{
 		Handler: h,
 	}
